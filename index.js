@@ -48,7 +48,19 @@ async function init(){
         res.end()
       } else {
         if (DEV) raw = requireUncached('./routes/raw')
+        req.params.sha = undefined
         raw(req, res)
+      }
+    })
+    .get('/:user/:id/raw/:sha/:file?', (req, res) => {
+      if (!req.file && req.url.at(-1) != '/' && !req.url.includes('index.html')){
+        // redirect to add a slash if file is missing and not index.html
+        res.statusCode = 302
+        res.setHeader('Location', `${req.url}/`)
+        res.end()
+      } else {
+        if (DEV) raw = requireUncached('./routes/raw')
+        raw(req, res) // req.params.sha points to specific gist revision
       }
     })
     .listen(PORT, err => {
