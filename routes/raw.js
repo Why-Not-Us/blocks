@@ -3,10 +3,14 @@ const fetchCache = require("./../lib/fetch-cache");
 const mime = require("mime-types");
 
 module.exports = async function get(req, res, next) {
-  const { user, id } = req.params;
+  const { user, id, sha } = req.params;
   const file = req.params.file || 'index.html';
 
-  const url = `https://gist.githubusercontent.com/${user}/${id}/raw/${file}`;
+  // Use SHA if present
+  const url = sha
+    ? `https://gist.githubusercontent.com/${user}/${id}/raw/${sha}/${file}`
+    : `https://gist.githubusercontent.com/${user}/${id}/raw/${file}`;
+
   try {
     const type = mime.lookup(file) || '';
     if (type.match(/^image/)) {

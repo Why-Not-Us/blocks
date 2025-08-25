@@ -147,8 +147,10 @@ async function generateHTML(user, id, gist, query){
 }
 
 module.exports = async function get(req, res, next) {
-  var {user, id} = req.params
-  var url = `https://api.github.com/gists/${id}`
+  var {user, id, sha} = req.params
+  var url = sha
+    ? `https://api.github.com/gists/${id}/${sha}`
+    : `https://api.github.com/gists/${id}`
   var gist = await fetchCache(url, 'json')
   var html = await generateHTML(user, id, gist, req.query)
 
