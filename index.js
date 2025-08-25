@@ -10,12 +10,12 @@ var fetchCache = require('./lib/fetch-cache')
 
 var exec = require('await-exec')
 var argv = require('minimist')(process.argv.slice(2))
+
 var PORT = argv.port || 3002
 var DEV = argv.dev
 
-
-async function init(){
-  polka()
+function createApp() {
+  return polka()
     .use((req, res, next) => {
       if (req.query.cachebust) fetchCache.bust()
       next()
@@ -63,14 +63,19 @@ async function init(){
         raw(req, res) // req.params.sha points to specific gist revision
       }
     })
-    .listen(PORT, err => {
-      if (err) throw err
-      console.log(`http://localhost:${PORT}`)
-      // exec(`open http://localhost:${PORT}`)
-    })
 }
 
-init()
+// Export for Vercel
+module.exports = createApp().handler
+
+// Local dev (node index.js)
+if (!process.env.VERCEL) {
+  const app = createApp()
+  app.listen(PORT, err => {
+    if (err) throw err
+    console.log(`http://localhost:${PORT}`)
+  })
+}
 
 
 function requireUncached(module){
