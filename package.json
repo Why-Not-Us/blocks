@@ -11,9 +11,10 @@
     "highlight.js": "^9.15.10",
     "indian-ocean": "^4.0.0",
     "marked": "^0.7.0",
+    "mime-types": "^3.0.1",
+    "minimist": "1",
     "polka": "^0.5.2",
     "r2": "^2.0.1",
-    "minimist": "1",
     "underscore": "^1.9.1"
   },
   "scripts": {
