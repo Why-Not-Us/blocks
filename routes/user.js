@@ -1,9 +1,60 @@
+
 var fetchCache = require('./../lib/fetch-cache')
 var io = require('indian-ocean')
 var _ = require('underscore')
 var d3 = require('d3')
 
 var e = _.escape
+
+// Fetch and cache starred gists for a user
+async function dlStarredGists(user, token = '', maxPages = 3) {
+  var responses = []
+  var page = 1
+  var perPage = 100
+  do {
+    var url = `https://api.github.com/users/${user}/starred?page=${page}&per_page=${perPage}`
+    var response = await fetchCache(url, 'json', token)
+    responses.push(response)
+    page++
+  } while (response.length === 100 && page <= maxPages)
+
+  // Flatten and map to required metadata
+  return _.flatten(responses)
+    .map(gist => ({
+      id: gist.id,
+      description: gist.description,
+      public: gist.public,
+      owner: gist.owner ? gist.owner.login : null
+    }))
+    .filter(d => d.id)
+    .filter((d) => !d.description?.match(/unlisted/i));
+}
+
+// Get starred gists, cache to usercache/<username>-starred.csv
+async function getStarredGists(user, token) {
+  var path = __dirname + `/../usercache/${user}${token}-starred.csv`
+  var cachedStarred = []
+  var maxPages = 0
+  try {
+    cachedStarred = io.readDataSync(path)
+    cachedStarred.forEach(d => d.public = d.public == 'true')
+  } catch (e) {
+    maxPages = 3
+  }
+
+  var starred = await dlStarredGists(user, token, maxPages)
+  var isId = {}
+  starred.forEach(d => isId[d.id] = true)
+  cachedStarred.forEach(d => isId[d.id] ? '' : starred.push(d))
+
+  // download & save full list of starred gists after making request
+  !(async function(){
+    var currentStarred = await dlStarredGists(user, token)
+    if (currentStarred.length > 0) io.writeData(path, currentStarred, d => d)
+  })()
+
+  return starred
+}
 
 async function dlGists(user, token='', maxPages=11){
   var responces = []
@@ -18,7 +69,11 @@ async function dlGists(user, token='', maxPages=11){
   } while (responce.length == 100 && page < maxPages)
 
   return _.flatten(responces)
-    .map(({id, description, public}) => ({id, description, public}))
+    .map(gist => ({
+      id: gist.id,
+      description: gist.description,
+      public: gist.public
+    }))
     .filter(d => d.id)
     .filter((d) => !d.description?.match(/unlisted/i));
 }
@@ -64,6 +119,11 @@ function generateHTML(user, gists){
   <title>${title}</title>
   <div class='username'>${titleURL}</div>
 
+  <div class="tab-bar">
+    <button id="tab-my-blocks" class="tab active">My Blocks</button>
+    <button id="tab-starred-blocks" class="tab">Starred Blocks</button>
+  </div>
+
   <div id='gist-list'>
   ${gists.filter(d => d && d.id).map(gist => `
     <a class="block-thumb ${gist.public ? '' : 'block-private'}"
@@ -73,6 +133,47 @@ function generateHTML(user, gists){
     </a>
   `).join(' ')}
   </div>
+
+  <div id='starred-list' style='display:none'></div>
+
+  <script>
+    const tabMy = document.getElementById('tab-my-blocks');
+    const tabStarred = document.getElementById('tab-starred-blocks');
+    const gistList = document.getElementById('gist-list');
+    const starredList = document.getElementById('starred-list');
+
+    tabMy.onclick = function() {
+      tabMy.classList.add('active');
+      tabStarred.classList.remove('active');
+      gistList.style.display = '';
+      starredList.style.display = 'none';
+    };
+    tabStarred.onclick = async function() {
+      tabStarred.classList.add('active');
+      tabMy.classList.remove('active');
+      gistList.style.display = 'none';
+      starredList.style.display = '';
+      if (!starredList.innerHTML) {
+        starredList.innerHTML = '<p>Loading...</p>';
+        const res = await fetch('/${user}/starred');
+        const blocks = await res.json();
+        function renderStarredBlock(gist) {
+          const owner = gist.owner ? gist.owner : '';
+          const desc = gist.description || gist.id.substr(0, 20);
+          const priv = gist.public ? '' : 'block-private';
+          const lock = gist.public ? '' : '🔒 ';
+          return `<a class="block-thumb ${priv}"
+            style="background-position: center; background-image:url('https://gist.githubusercontent.com/${owner}/${gist.id}/raw/thumbnail.png')"
+            href="/${owner}/${gist.id}">
+            <p>${lock}${owner ? owner + ': ' : ''}${desc}</p>
+          </a>`;
+        }
+        starredList.innerHTML = blocks.length
+          ? blocks.map(renderStarredBlock).join(' ')
+          : '<p>No starred blocks found.</p>';
+      }
+    };
+  </script>
   `
 }
 
@@ -82,7 +183,7 @@ module.exports = async function get(req, res, next) {
   var gists = await getGists(req.params.user, token)
 
   // redirect if user doesn't exist and there's a gist id with their user name
-  // /397f1b0905400b83fcea4008fb4ccdb1 -> /1wheel/397f1b0905400b83fcea4008fb4ccdb1
+  // /397f1b0905400b83fcea4008fb4ccdb1 -> /1wheel/397f1b0905400b83e4008fb4ccdb1
   if (!gists.length){
     var url = `https://api.github.com/gists/${user}`
     var gist = await fetchCache(url, 'json')
@@ -97,3 +198,6 @@ module.exports = async function get(req, res, next) {
   res.writeHead(200, {'Content-Type': 'text/html'})
   res.end(html)
 }
+
+// Export getStarredGists for API use
+module.exports.getStarredGists = getStarredGists
