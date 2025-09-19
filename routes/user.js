@@ -20,11 +20,11 @@ async function dlStarredGists(user, token = '', maxPages = 3) {
 
   // Flatten and map to required metadata
   return _.flatten(responses)
-    .map(({id, description, public, owner}) => ({
-      id,
-      description,
-      public,
-      owner: owner ? owner.login : null
+    .map(gist => ({
+      id: gist.id,
+      description: gist.description,
+      public: gist.public,
+      owner: gist.owner ? gist.owner.login : null
     }))
     .filter(d => d.id)
     .filter((d) => !d.description?.match(/unlisted/i));
@@ -69,7 +69,11 @@ async function dlGists(user, token='', maxPages=11){
   } while (responce.length == 100 && page < maxPages)
 
   return _.flatten(responces)
-    .map(({id, description, public}) => ({id, description, public}))
+    .map(gist => ({
+      id: gist.id,
+      description: gist.description,
+      public: gist.public
+    }))
     .filter(d => d.id)
     .filter((d) => !d.description?.match(/unlisted/i));
 }
@@ -115,6 +119,11 @@ function generateHTML(user, gists){
   <title>${title}</title>
   <div class='username'>${titleURL}</div>
 
+  <div class="tab-bar">
+    <button id="tab-my-blocks" class="tab active">My Blocks</button>
+    <button id="tab-starred-blocks" class="tab">Starred Blocks</button>
+  </div>
+
   <div id='gist-list'>
   ${gists.filter(d => d && d.id).map(gist => `
     <a class="block-thumb ${gist.public ? '' : 'block-private'}"
@@ -124,6 +133,47 @@ function generateHTML(user, gists){
     </a>
   `).join(' ')}
   </div>
+
+  <div id='starred-list' style='display:none'></div>
+
+  <script>
+    const tabMy = document.getElementById('tab-my-blocks');
+    const tabStarred = document.getElementById('tab-starred-blocks');
+    const gistList = document.getElementById('gist-list');
+    const starredList = document.getElementById('starred-list');
+
+    tabMy.onclick = function() {
+      tabMy.classList.add('active');
+      tabStarred.classList.remove('active');
+      gistList.style.display = '';
+      starredList.style.display = 'none';
+    };
+    tabStarred.onclick = async function() {
+      tabStarred.classList.add('active');
+      tabMy.classList.remove('active');
+      gistList.style.display = 'none';
+      starredList.style.display = '';
+      if (!starredList.innerHTML) {
+        starredList.innerHTML = '<p>Loading...</p>';
+        const res = await fetch('/${user}/starred');
+        const blocks = await res.json();
+        function renderStarredBlock(gist) {
+          const owner = gist.owner ? gist.owner : '';
+          const desc = gist.description || gist.id.substr(0, 20);
+          const priv = gist.public ? '' : 'block-private';
+          const lock = gist.public ? '' : '🔒 ';
+          return `<a class="block-thumb ${priv}"
+            style="background-position: center; background-image:url('https://gist.githubusercontent.com/${owner}/${gist.id}/raw/thumbnail.png')"
+            href="/${owner}/${gist.id}">
+            <p>${lock}${owner ? owner + ': ' : ''}${desc}</p>
+          </a>`;
+        }
+        starredList.innerHTML = blocks.length
+          ? blocks.map(renderStarredBlock).join(' ')
+          : '<p>No starred blocks found.</p>';
+      }
+    };
+  </script>
   `
 }
 
