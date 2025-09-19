@@ -168,12 +168,12 @@ function generateHTML(user, gists){
           const priv = gist.public ? '' : 'block-private';
           const lock = gist.public ? '' : '🔒 ';
           const a = document.createElement('a');
-          a.className = `block-thumb ${priv}`;
-          a.href = `/${owner}/${gist.id}`;
+          a.className = 'block-thumb ' + priv;
+          a.href = '/' + owner + '/' + gist.id;
           a.style.backgroundPosition = 'center';
-          a.style.backgroundImage = `url('https://gist.githubusercontent.com/${owner}/${gist.id}/raw/thumbnail.png')`;
+          a.style.backgroundImage = "url('https://gist.githubusercontent.com/" + owner + "/" + gist.id + "/raw/thumbnail.png')";
           const p = document.createElement('p');
-          p.textContent = `${lock}${owner ? owner + ': ' : ''}${desc}`;
+          p.textContent = lock + (owner ? owner + ': ' : '') + desc;
           a.appendChild(p);
           starredList.appendChild(a);
         });
