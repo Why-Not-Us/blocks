@@ -36,6 +36,20 @@ async function init(){
       if (DEV) user = requireUncached('./routes/user')
       user(req, res)
     })
+    // New endpoint: /:user/starred returns starred blocks for a user
+    .get('/:user/starred', async (req, res) => {
+      const { getStarredGists } = require('./routes/user')
+      const user = req.params.user
+      const token = req.query.token || ''
+      try {
+        const starred = await getStarredGists(user, token)
+        res.writeHead(200, {'Content-Type': 'application/json'})
+        res.end(JSON.stringify(starred))
+      } catch (err) {
+        res.writeHead(500, {'Content-Type': 'application/json'})
+        res.end(JSON.stringify({error: err.message}))
+      }
+    })
     .get('/:user/:id', (req, res) => {
       if (DEV) block = requireUncached('./routes/block')
       block(req, res)

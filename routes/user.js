@@ -133,7 +133,7 @@ module.exports = async function get(req, res, next) {
   var gists = await getGists(req.params.user, token)
 
   // redirect if user doesn't exist and there's a gist id with their user name
-  // /397f1b0905400b83fcea4008fb4ccdb1 -> /1wheel/397f1b0905400b83fcea4008fb4ccdb1
+  // /397f1b0905400b83fcea4008fb4ccdb1 -> /1wheel/397f1b0905400b83e4008fb4ccdb1
   if (!gists.length){
     var url = `https://api.github.com/gists/${user}`
     var gist = await fetchCache(url, 'json')
@@ -148,3 +148,6 @@ module.exports = async function get(req, res, next) {
   res.writeHead(200, {'Content-Type': 'text/html'})
   res.end(html)
 }
+
+// Export getStarredGists for API use
+module.exports.getStarredGists = getStarredGists
