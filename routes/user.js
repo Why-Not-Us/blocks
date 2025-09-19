@@ -8,26 +8,30 @@ var e = _.escape
 
 // Fetch and cache starred gists for a user
 async function dlStarredGists(user, token = '', maxPages = 3) {
-  var responses = []
-  var page = 1
-  var perPage = 100
-  do {
-    var url = `https://api.github.com/users/${user}/starred?page=${page}&per_page=${perPage}`
-    var response = await fetchCache(url, 'json', token)
-    responses.push(response)
-    page++
-  } while (response.length === 100 && page <= maxPages)
-
-  // Flatten and map to required metadata
-  return _.flatten(responses)
-    .map(gist => ({
-      id: gist.id,
-      description: gist.description,
-      public: gist.public,
-      owner: gist.owner ? gist.owner.login : null
-    }))
-    .filter(d => d.id)
-    .filter((d) => !d.description?.match(/unlisted/i));
+  // If token is provided, use /gists/starred for the authenticated user
+  if (token) {
+    var responses = []
+    var page = 1
+    var perPage = 100
+    do {
+      var url = `https://api.github.com/gists/starred?page=${page}&per_page=${perPage}`
+      var response = await fetchCache(url, 'json', token)
+      responses.push(response)
+      page++
+    } while (response.length === 100 && page <= maxPages)
+    return _.flatten(responses)
+      .map(gist => ({
+        id: gist.id,
+        description: gist.description,
+        public: gist.public,
+        owner: gist.owner ? gist.owner.login : null
+      }))
+      .filter(d => d.id)
+      .filter((d) => !d.description?.match(/unlisted/i));
+  } else {
+    // No token, cannot fetch starred gists
+    return [];
+  }
 }
 
 // Get starred gists, cache to usercache/<username>-starred.csv
@@ -159,7 +163,7 @@ function generateHTML(user, gists){
         const blocks = await res.json();
         starredList.innerHTML = '';
         if (!blocks.length) {
-          starredList.innerHTML = '<p>No starred blocks found.</p>';
+          starredList.innerHTML = '<p>No starred blocks found or you must provide a GitHub token to view starred gists.</p>';
           return;
         }
         blocks.forEach(gist => {
