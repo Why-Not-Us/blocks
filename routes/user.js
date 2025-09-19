@@ -157,20 +157,26 @@ function generateHTML(user, gists){
         starredList.innerHTML = '<p>Loading...</p>';
         const res = await fetch('/${user}/starred');
         const blocks = await res.json();
-        function renderStarredBlock(gist) {
+        starredList.innerHTML = '';
+        if (!blocks.length) {
+          starredList.innerHTML = '<p>No starred blocks found.</p>';
+          return;
+        }
+        blocks.forEach(gist => {
           const owner = gist.owner ? gist.owner : '';
           const desc = gist.description || gist.id.substr(0, 20);
           const priv = gist.public ? '' : 'block-private';
           const lock = gist.public ? '' : '🔒 ';
-          return `<a class="block-thumb ${priv}"
-            style="background-position: center; background-image:url('https://gist.githubusercontent.com/${owner}/${gist.id}/raw/thumbnail.png')"
-            href="/${owner}/${gist.id}">
-            <p>${lock}${owner ? owner + ': ' : ''}${desc}</p>
-          </a>`;
-        }
-        starredList.innerHTML = blocks.length
-          ? blocks.map(renderStarredBlock).join(' ')
-          : '<p>No starred blocks found.</p>';
+          const a = document.createElement('a');
+          a.className = `block-thumb ${priv}`;
+          a.href = `/${owner}/${gist.id}`;
+          a.style.backgroundPosition = 'center';
+          a.style.backgroundImage = `url('https://gist.githubusercontent.com/${owner}/${gist.id}/raw/thumbnail.png')`;
+          const p = document.createElement('p');
+          p.textContent = `${lock}${owner ? owner + ': ' : ''}${desc}`;
+          a.appendChild(p);
+          starredList.appendChild(a);
+        });
       }
     };
   </script>
