@@ -1,9 +1,60 @@
+
 var fetchCache = require('./../lib/fetch-cache')
 var io = require('indian-ocean')
 var _ = require('underscore')
 var d3 = require('d3')
 
 var e = _.escape
+
+// Fetch and cache starred gists for a user
+async function dlStarredGists(user, token = '', maxPages = 3) {
+  var responses = []
+  var page = 1
+  var perPage = 100
+  do {
+    var url = `https://api.github.com/users/${user}/starred?page=${page}&per_page=${perPage}`
+    var response = await fetchCache(url, 'json', token)
+    responses.push(response)
+    page++
+  } while (response.length === 100 && page <= maxPages)
+
+  // Flatten and map to required metadata
+  return _.flatten(responses)
+    .map(({id, description, public, owner}) => ({
+      id,
+      description,
+      public,
+      owner: owner ? owner.login : null
+    }))
+    .filter(d => d.id)
+    .filter((d) => !d.description?.match(/unlisted/i));
+}
+
+// Get starred gists, cache to usercache/<username>-starred.csv
+async function getStarredGists(user, token) {
+  var path = __dirname + `/../usercache/${user}${token}-starred.csv`
+  var cachedStarred = []
+  var maxPages = 0
+  try {
+    cachedStarred = io.readDataSync(path)
+    cachedStarred.forEach(d => d.public = d.public == 'true')
+  } catch (e) {
+    maxPages = 3
+  }
+
+  var starred = await dlStarredGists(user, token, maxPages)
+  var isId = {}
+  starred.forEach(d => isId[d.id] = true)
+  cachedStarred.forEach(d => isId[d.id] ? '' : starred.push(d))
+
+  // download & save full list of starred gists after making request
+  !(async function(){
+    var currentStarred = await dlStarredGists(user, token)
+    if (currentStarred.length > 0) io.writeData(path, currentStarred, d => d)
+  })()
+
+  return starred
+}
 
 async function dlGists(user, token='', maxPages=11){
   var responces = []
