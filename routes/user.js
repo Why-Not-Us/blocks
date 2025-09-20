@@ -46,18 +46,26 @@ async function getStarredGists(user, token) {
     maxPages = 3
   }
 
-  var starred = await dlStarredGists(user, token, maxPages)
+  let starred = [];
+  let error = null;
+  try {
+    starred = await dlStarredGists(user, token, maxPages)
+  } catch (e) {
+    error = e && e.message ? e.message : 'Unknown error';
+  }
   var isId = {}
   starred.forEach(d => isId[d.id] = true)
   cachedStarred.forEach(d => isId[d.id] ? '' : starred.push(d))
 
   // download & save full list of starred gists after making request
   !(async function(){
-    var currentStarred = await dlStarredGists(user, token)
-    if (currentStarred.length > 0) io.writeData(path, currentStarred, d => d)
+    try {
+      var currentStarred = await dlStarredGists(user, token)
+      if (currentStarred.length > 0) io.writeData(path, currentStarred, d => d)
+    } catch (e) {}
   })()
 
-  return starred
+  return {starred, error, tokenMissing: !token};
 }
 
 async function dlGists(user, token='', maxPages=11){
@@ -152,37 +160,50 @@ function generateHTML(user, gists){
       gistList.style.display = '';
       starredList.style.display = 'none';
     };
-    tabStarred.onclick = async function() {
-      tabStarred.classList.add('active');
-      tabMy.classList.remove('active');
-      gistList.style.display = 'none';
-      starredList.style.display = '';
-      if (!starredList.innerHTML) {
-        starredList.innerHTML = '<p>Loading...</p>';
-        const res = await fetch('/${user}/starred');
-        const blocks = await res.json();
-        starredList.innerHTML = '';
-        if (!blocks.length) {
-          starredList.innerHTML = '<p>No starred blocks found or you must provide a GitHub token to view starred gists.</p>';
-          return;
+      tabStarred.onclick = async function() {
+        tabStarred.classList.add('active');
+        tabMy.classList.remove('active');
+        gistList.style.display = 'none';
+        starredList.style.display = '';
+        if (!starredList.innerHTML) {
+          starredList.innerHTML = '<p>Loading...</p>';
+          // Get token from URL if present
+          const urlParams = new URLSearchParams(window.location.search);
+          const token = urlParams.get('token');
+          let apiUrl = '/${user}/starred';
+          if (token) apiUrl += '?token=' + encodeURIComponent(token);
+          const res = await fetch(apiUrl);
+          const result = await res.json();
+          starredList.innerHTML = '';
+          if (result.error) {
+            starredList.innerHTML = '<p>Error loading starred blocks: ' + result.error + '</p>';
+            return;
+          }
+          if (result.tokenMissing) {
+            starredList.innerHTML = '<p>You must provide a GitHub token to view starred gists.</p>';
+            return;
+          }
+          if (!result.starred || !result.starred.length) {
+            starredList.innerHTML = '<p>No starred blocks found for this user.</p>';
+            return;
+          }
+          result.starred.forEach(gist => {
+            const owner = gist.owner ? gist.owner : '';
+            const desc = gist.description || gist.id.substr(0, 20);
+            const priv = gist.public ? '' : 'block-private';
+            const lock = gist.public ? '' : '🔒 ';
+            const a = document.createElement('a');
+            a.className = 'block-thumb ' + priv;
+            a.href = '/' + owner + '/' + gist.id;
+            a.style.backgroundPosition = 'center';
+            a.style.backgroundImage = "url('https://gist.githubusercontent.com/" + owner + "/" + gist.id + "/raw/thumbnail.png')";
+            const p = document.createElement('p');
+            p.textContent = lock + (owner ? owner + ': ' : '') + desc;
+            a.appendChild(p);
+            starredList.appendChild(a);
+          });
         }
-        blocks.forEach(gist => {
-          const owner = gist.owner ? gist.owner : '';
-          const desc = gist.description || gist.id.substr(0, 20);
-          const priv = gist.public ? '' : 'block-private';
-          const lock = gist.public ? '' : '🔒 ';
-          const a = document.createElement('a');
-          a.className = 'block-thumb ' + priv;
-          a.href = '/' + owner + '/' + gist.id;
-          a.style.backgroundPosition = 'center';
-          a.style.backgroundImage = "url('https://gist.githubusercontent.com/" + owner + "/" + gist.id + "/raw/thumbnail.png')";
-          const p = document.createElement('p');
-          p.textContent = lock + (owner ? owner + ': ' : '') + desc;
-          a.appendChild(p);
-          starredList.appendChild(a);
-        });
-      }
-    };
+      };
   </script>
   `
 }
